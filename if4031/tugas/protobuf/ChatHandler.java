@@ -33,9 +33,8 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
         try {
             int UId = request.getUserid();
             String chname = request.getChname();
-            if (chname == null) {//Send to all channel user belongs to
+            if (chname == "") {//Send to all channel user belongs to
                 ArrayList<String> channels = userChannels.get(request.getUserid());
-
                 if(channels.size()>0) {
                     for (String channel : channels) {
                         synchronized (lockusers.get(channel)) {
@@ -46,21 +45,22 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                                     synchronized (lockchatbox.get(user)) {
                                         List<MessageProtos.MessageSend> messages = chatbox.get(user);
                                         MessageProtos.MessageSend r =  MessageProtos.MessageSend.newBuilder().
-                                                setChname(request.getChname()).
+                                                setChname(channel).
                                                 setMessage(request.getMessage()).
                                                 setUserid(request.getUserid()).
                                                 setTime(request.getTime()).build();
                                         messages.add(UId,r);
+                                        responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
                                     }
                                 }
                             } else {
-                                throw new Exception("a");
+                                throw new Exception();
                             }
                         }
                     }
                 }
                 else{
-                    throw new Exception("b");
+                    throw new Exception();
                 }
             } else {
                 synchronized (lockusers.get(chname)) {
@@ -75,10 +75,11 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                                         setUserid(request.getUserid()).
                                         setTime(request.getTime()).build();
                                 messages.add(UId,r);
+                                responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
                             }
                         }
                     } else {
-                        throw new Exception("c");
+                        throw new Exception();
                     }
                 }
             }
@@ -87,7 +88,6 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
             System.out.println(request.getChname() +" channel not found");
             responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(false)).build());
         }
-        responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
         responseObserver.onCompleted();
     }
 
@@ -140,13 +140,12 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                 channels.remove(chname);
                 System.out.println(activeUsers.get(uId) + " leave " + chname);
                 responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
-                responseObserver.onCompleted();
             }
         } catch(Exception x){
             x.printStackTrace();
             responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(false)).build());
-            responseObserver.onCompleted();
         }
+        responseObserver.onCompleted();
     }
 
     @Override
@@ -157,7 +156,7 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
             synchronized (lockchatbox.get(userId)) {
                 for (MessageProtos.MessageSend m : chatbox.get(userId)) {
                     SimpleDateFormat sdf = new SimpleDateFormat("MMM dd,yyyy HH:mm");
-                    Date resultdate = new Date(m.getTime());
+                    Date resultdate = new Date(new Long(m.getTime()));
                     MessageProtos.MessageRecv temp = MessageProtos.MessageRecv.newBuilder().setNickname(activeUsers.get(m.getUserid())).
                             setTime(sdf.format(resultdate)).
                             setMessage(m.getMessage()).
@@ -166,10 +165,10 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                     l.addBunchChat(temp);
                 }
                 chatbox.get(userId).clear();
-                responseObserver.onValue(l.build());
-                responseObserver.onCompleted();
             }
         }
+        responseObserver.onValue(l.build());
+        responseObserver.onCompleted();
     }
 
     @Override
@@ -179,6 +178,8 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
             for (Map.Entry<Integer, String> entry : activeUsers.entrySet()) {
                 if (nickname.equals(entry.getValue())) {
                     responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("int").setValue(String.valueOf(-1)).build()); //username exist
+                    responseObserver.onCompleted();
+                    return;
                 }
             }
             List<MessageProtos.MessageSend> messages = new ArrayList<MessageProtos.MessageSend>();
@@ -195,10 +196,12 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
     @Override
     public void exit(MessageProtos.TypeNative request, StreamObserver<MessageProtos.TypeNative> responseObserver) {
         int uId = new Integer(request.getValue());
+        String nickname = activeUsers.get(uId);
         userChannels.remove(uId);
         activeUsers.remove(uId);
         chatbox.remove(uId);
         lockchatbox.remove(uId);
+        System.out.println(nickname + " has logged out");
         responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
         responseObserver.onCompleted();
     }

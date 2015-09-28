@@ -15,6 +15,7 @@ public class IRCClient {
     private static int currentUId = -1;
     private static String currentUser = null;
     private static List<MessageProtos.MessageRecv> myMessages = new ArrayList<MessageProtos.MessageRecv>();
+    private static ArrayList<Thread> listOfThread = new ArrayList<Thread>();
     public static void main(String[] args) {
         try {
             ChannelImpl channel = NettyChannelBuilder.forAddress("127.0.0.1",9090).
@@ -32,6 +33,8 @@ public class IRCClient {
     private void startClient(){
         Thread inputHandler = perform();
         Thread messageReceiver = messageReceiver();
+        listOfThread.add(inputHandler);
+        listOfThread.add(messageReceiver);
         inputHandler.start();
         messageReceiver.start();
         try {
@@ -45,19 +48,19 @@ public class IRCClient {
     private Thread messageReceiver(){
         return new Thread(){
             @Override
-            public void run(){
+            public void run() {
                 Timer timer = new Timer();
                 TimerTask asyncTask = new TimerTask() {
                     @Override
                     public void run() {
                         try {
                             if (currentUId > -1 && currentUser != null) {
-                                    synchronized (blockingStub) {
-                                        MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
-                                        request.setResponseType("int");
-                                        request.setValue(String.valueOf(currentUId));
-                                        myMessages = blockingStub.pullMessage(request.build()).getBunchChatList();
-                                    }
+                                synchronized (blockingStub) {
+                                    MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
+                                    request.setResponseType("int");
+                                    request.setValue(String.valueOf(currentUId));
+                                    myMessages = blockingStub.pullMessage(request.build()).getBunchChatList();
+                                }
                                 if (!myMessages.isEmpty()) {
                                     for (MessageProtos.MessageRecv m : myMessages) {
                                         System.out.println("[" + m.getChname() + "] (" + m.getNickname() + "):" + m.getMessage() + " (" + m.getTime() + ")");
@@ -68,7 +71,6 @@ public class IRCClient {
                         } catch (Exception x) {
                             x.printStackTrace();
                         }
-
                     }
                 };
                 timer.schedule(asyncTask, 0, 100);
@@ -163,8 +165,8 @@ public class IRCClient {
                                             request.setResponseType("int");
                                             request.setValue(String.valueOf(currentUId));
                                             blockingStub.exit(request.build());
+                                            return;
                                         }
-                                        return;
                                     default:
                                         MessageProtos.MessageSend.Builder M = MessageProtos.MessageSend.newBuilder();
                                         M.setUserid(currentUId);
@@ -175,6 +177,7 @@ public class IRCClient {
                                             M.setChname(buffer.substring(1));
                                             M.setMessage(content);
                                         } else {
+                                            M.setChname("");
                                             M.setMessage(input);
                                         }
                                         synchronized (blockingStub) {
