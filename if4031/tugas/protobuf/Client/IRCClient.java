@@ -1,0 +1,199 @@
+package if4031.tugas.protobuf.Client;
+
+
+import if4031.tugas.protobuf.ChatApplicationGrpc;
+import if4031.tugas.protobuf.MessageProtos;
+import if4031.tugas.protobuf.StringGenerator;
+import io.grpc.ChannelImpl;
+import io.grpc.netty.NegotiationType;
+import io.grpc.netty.NettyChannelBuilder;
+
+import java.util.*;
+
+public class IRCClient {
+    private static ChatApplicationGrpc.ChatApplicationBlockingStub blockingStub;
+    private static int currentUId = -1;
+    private static String currentUser = null;
+    private static List<MessageProtos.MessageRecv> myMessages = new ArrayList<MessageProtos.MessageRecv>();
+    public static void main(String[] args) {
+        try {
+            ChannelImpl channel = NettyChannelBuilder.forAddress("127.0.0.1",9090).
+                   negotiationType(NegotiationType.PLAINTEXT).build();
+            blockingStub = ChatApplicationGrpc.newBlockingStub(channel);
+            IRCClient client = new IRCClient();
+            client.startClient();
+
+        } catch (Exception x) {
+            x.printStackTrace();
+        }
+    }
+
+
+    private void startClient(){
+        Thread inputHandler = perform();
+        Thread messageReceiver = messageReceiver();
+        inputHandler.start();
+        messageReceiver.start();
+        try {
+            inputHandler.join();
+            messageReceiver.join();
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private Thread messageReceiver(){
+        return new Thread(){
+            @Override
+            public void run(){
+                Timer timer = new Timer();
+                TimerTask asyncTask = new TimerTask() {
+                    @Override
+                    public void run() {
+                        try {
+                            if (currentUId > -1 && currentUser != null) {
+                                    synchronized (blockingStub) {
+                                        MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
+                                        request.setResponseType("int");
+                                        request.setValue(String.valueOf(currentUId));
+                                        myMessages = blockingStub.pullMessage(request.build()).getBunchChatList();
+                                    }
+                                if (!myMessages.isEmpty()) {
+                                    for (MessageProtos.MessageRecv m : myMessages) {
+                                        System.out.println("[" + m.getChname() + "] (" + m.getNickname() + "):" + m.getMessage() + " (" + m.getTime() + ")");
+                                    }
+                                }
+                            }
+
+                        } catch (Exception x) {
+                            x.printStackTrace();
+                        }
+
+                    }
+                };
+                timer.schedule(asyncTask, 0, 100);
+            }
+        };
+    }
+
+    private Thread perform() {
+        return new Thread() {
+            @Override
+            public void run() {
+                try {
+
+                    Scanner client_input = new Scanner(System.in);
+                    String buffer, content;
+                    while (true) {
+                        String input = client_input.nextLine();
+                        if (!input.isEmpty()) {
+                            if (input.contains(" ")) {
+                                buffer = input.substring(0, input.indexOf(' '));
+                                content = input.substring(input.indexOf(' ') + 1, input.length());
+                            } else {
+                                buffer = input;
+                                content = input;
+                            }
+                            if (buffer.length() > 0) {
+                                switch (buffer) {
+                                    case "/NICK":
+                                        if (!content.isEmpty()) {
+                                            if (currentUser == null) {
+                                                synchronized (blockingStub) {
+                                                    MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
+                                                    request.setResponseType("String");
+                                                    request.setValue(content);
+                                                    currentUId = new Integer(blockingStub.createNick(request.build()).getValue());
+                                                }
+                                                if (currentUId > -1) {
+                                                    currentUser = content;
+                                                } else {
+                                                    System.out.println("Username exist ! Please use another nickname");
+                                                }
+                                            } else {
+                                                System.out.println("You are logged in as " + currentUser + ". Reopen the client to use another nickname");
+                                            }
+                                        } else {
+                                            StringGenerator tempNick = new StringGenerator(8);
+                                            MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
+                                            request.setResponseType("String");
+                                            request.setValue(tempNick.nextString());
+                                            currentUser = tempNick.nextString();
+                                            synchronized (blockingStub) {
+                                                currentUId = new Integer(blockingStub.createNick(request.build()).getValue());
+                                            }
+                                        }
+                                        break;
+                                    case "/JOIN":
+                                        if (!content.isEmpty()) {
+                                            synchronized (blockingStub) {
+                                                MessageProtos.UserRequest.Builder request = MessageProtos.UserRequest.newBuilder();
+                                                request.setUserid(currentUId);
+                                                request.setData(content);
+                                                blockingStub.joinChannel(request.build());
+                                                System.out.println("You have joined " + content + " channel");
+                                            }
+                                        } else {
+                                            synchronized (blockingStub) {
+                                                MessageProtos.UserRequest.Builder request = MessageProtos.UserRequest.newBuilder();
+                                                request.setUserid(currentUId);
+                                                request.setData("general");
+                                                blockingStub.joinChannel(request.build());
+                                                System.out.println("You have joined general channel");
+                                            }
+                                        }
+                                        break;
+                                    case "/LEAVE":
+                                        if (!content.isEmpty()) {
+                                            synchronized (blockingStub) {
+                                                MessageProtos.UserRequest.Builder request = MessageProtos.UserRequest.newBuilder();
+                                                request.setUserid(currentUId);
+                                                request = MessageProtos.UserRequest.newBuilder();
+                                                request.setUserid(currentUId);
+                                                request.setData(content);
+                                                if (!Boolean.valueOf(blockingStub.leaveChannel(request.build()).getValue())) {
+                                                    System.out.println("channel not found");
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case "/EXIT":
+                                        synchronized (blockingStub) {
+                                            MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
+                                            request.setResponseType("int");
+                                            request.setValue(String.valueOf(currentUId));
+                                            blockingStub.exit(request.build());
+                                        }
+                                        return;
+                                    default:
+                                        MessageProtos.MessageSend.Builder M = MessageProtos.MessageSend.newBuilder();
+                                        M.setUserid(currentUId);
+                                        synchronized (blockingStub) {
+                                            M.setTime(blockingStub.getServerTime(MessageProtos.UserRequest.getDefaultInstance()).getValue());
+                                        }
+                                        if (buffer.contains("@")) {
+                                            M.setChname(buffer.substring(1));
+                                            M.setMessage(content);
+                                        } else {
+                                            M.setMessage(input);
+                                        }
+                                        synchronized (blockingStub) {
+                                            if (!Boolean.valueOf(blockingStub.sendMessage(M.build()).getValue())) {
+                                                System.out.println("channel unknown, please join a channel or recheck your message");
+                                            }
+                                        }
+                                }
+                            }
+                        } else {
+                            System.out.println("format input wrong");
+                        }
+
+                    }
+                } catch (Exception x) {
+                    x.printStackTrace();
+                }
+            }
+        };
+    }
+
+}

@@ -1051,7 +1051,9 @@ public final class MessageProtos {
       }
 
 
-      // @@protoc_insertion_point(builder_scope:irc.UserRequest)
+
+
+        // @@protoc_insertion_point(builder_scope:irc.UserRequest)
     }
 
     // @@protoc_insertion_point(class_scope:irc.UserRequest)

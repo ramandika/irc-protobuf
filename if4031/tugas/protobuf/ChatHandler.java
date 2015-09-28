@@ -50,6 +50,7 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                                                 setMessage(request.getMessage()).
                                                 setUserid(request.getUserid()).
                                                 setTime(request.getTime()).build();
+                                        messages.add(UId,r);
                                     }
                                 }
                             } else {
@@ -73,6 +74,7 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                                         setMessage(request.getMessage()).
                                         setUserid(request.getUserid()).
                                         setTime(request.getTime()).build();
+                                messages.add(UId,r);
                             }
                         }
                     } else {
@@ -84,9 +86,8 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
             System.out.println(x.getMessage());
             System.out.println(request.getChname() +" channel not found");
             responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(false)).build());
-            responseObserver.onCompleted();
         }
-        responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(false)).build());
+        responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
         responseObserver.onCompleted();
     }
 
@@ -177,7 +178,7 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
         synchronized (this) {
             for (Map.Entry<Integer, String> entry : activeUsers.entrySet()) {
                 if (nickname.equals(entry.getValue())) {
-                    return; //username exist
+                    responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("int").setValue(String.valueOf(-1)).build()); //username exist
                 }
             }
             List<MessageProtos.MessageSend> messages = new ArrayList<MessageProtos.MessageSend>();
