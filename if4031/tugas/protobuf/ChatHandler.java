@@ -2,6 +2,7 @@ package if4031.tugas.protobuf;
 
 import io.grpc.stub.StreamObserver;
 
+import java.lang.reflect.Array;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -49,8 +50,7 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                                                 setMessage(request.getMessage()).
                                                 setUserid(request.getUserid()).
                                                 setTime(request.getTime()).build();
-                                        messages.add(UId,r);
-                                        responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
+                                        messages.add(r);
                                     }
                                 }
                             } else {
@@ -58,6 +58,7 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                             }
                         }
                     }
+                    responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
                 }
                 else{
                     throw new Exception();
@@ -74,17 +75,17 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                                         setMessage(request.getMessage()).
                                         setUserid(request.getUserid()).
                                         setTime(request.getTime()).build();
-                                messages.add(UId,r);
-                                responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
+                                messages.add(r);
                             }
                         }
+                        responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
                     } else {
                         throw new Exception();
                     }
                 }
             }
         } catch(Exception x){
-            System.out.println(x.getMessage());
+            x.printStackTrace();
             System.out.println(request.getChname() +" channel not found");
             responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(false)).build());
         }
@@ -197,10 +198,16 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
     public void exit(MessageProtos.TypeNative request, StreamObserver<MessageProtos.TypeNative> responseObserver) {
         int uId = new Integer(request.getValue());
         String nickname = activeUsers.get(uId);
-        userChannels.remove(uId);
-        activeUsers.remove(uId);
-        chatbox.remove(uId);
-        lockchatbox.remove(uId);
+        userChannels.remove(new Integer(uId));
+        activeUsers.remove(new Integer(uId));
+        chatbox.remove(new Integer(uId));
+        for(Map.Entry<String, ArrayList<Integer>> entry : channelActive.entrySet()){
+            ArrayList<Integer> temp=entry.getValue();
+            for(int i=0;i<temp.size();i++){
+                if(temp.get(i)==uId) temp.remove(i);
+            }
+        }
+        lockchatbox.remove(new Integer(uId));
         System.out.println(nickname + " has logged out");
         responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(true)).build());
         responseObserver.onCompleted();

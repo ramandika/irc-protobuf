@@ -15,7 +15,8 @@ public class IRCClient {
     private static int currentUId = -1;
     private static String currentUser = null;
     private static List<MessageProtos.MessageRecv> myMessages = new ArrayList<MessageProtos.MessageRecv>();
-    private static ArrayList<Thread> listOfThread = new ArrayList<Thread>();
+    private static boolean isExit=false;
+
     public static void main(String[] args) {
         try {
             ChannelImpl channel = NettyChannelBuilder.forAddress("127.0.0.1",9090).
@@ -23,23 +24,22 @@ public class IRCClient {
             blockingStub = ChatApplicationGrpc.newBlockingStub(channel);
             IRCClient client = new IRCClient();
             client.startClient();
-
+            channel.shutdown();
         } catch (Exception x) {
             x.printStackTrace();
         }
+
     }
 
 
     private void startClient(){
         Thread inputHandler = perform();
         Thread messageReceiver = messageReceiver();
-        listOfThread.add(inputHandler);
-        listOfThread.add(messageReceiver);
         inputHandler.start();
         messageReceiver.start();
         try {
-            inputHandler.join();
             messageReceiver.join();
+            inputHandler.join();
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
         }
@@ -49,23 +49,30 @@ public class IRCClient {
         return new Thread(){
             @Override
             public void run() {
-                Timer timer = new Timer();
-                TimerTask asyncTask = new TimerTask() {
+                final Timer timer=new Timer();
+                final TimerTask asyncTask= new TimerTask() {
                     @Override
                     public void run() {
                         try {
-                            if (currentUId > -1 && currentUser != null) {
-                                synchronized (blockingStub) {
-                                    MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
-                                    request.setResponseType("int");
-                                    request.setValue(String.valueOf(currentUId));
-                                    myMessages = blockingStub.pullMessage(request.build()).getBunchChatList();
-                                }
-                                if (!myMessages.isEmpty()) {
-                                    for (MessageProtos.MessageRecv m : myMessages) {
-                                        System.out.println("[" + m.getChname() + "] (" + m.getNickname() + "):" + m.getMessage() + " (" + m.getTime() + ")");
+                            if(!isExit){
+                                if (currentUId > -1 && currentUser != null) {
+                                    synchronized (blockingStub) {
+                                        MessageProtos.TypeNative.Builder request = MessageProtos.TypeNative.newBuilder();
+                                        request.setResponseType("int");
+                                        request.setValue(String.valueOf(currentUId));
+                                        myMessages = blockingStub.pullMessage(request.build()).getBunchChatList();
+                                    }
+                                    if (!myMessages.isEmpty()) {
+                                        for (MessageProtos.MessageRecv m : myMessages) {
+                                            System.out.println("[" + m.getChname() + "] (" + m.getNickname() + "):" + m.getMessage() + " (" + m.getTime() + ")");
+                                        }
                                     }
                                 }
+                            }else{
+                                timer.cancel();
+                                timer.purge();
+                                System.out.println("Bye");
+
                             }
 
                         } catch (Exception x) {
@@ -86,7 +93,8 @@ public class IRCClient {
 
                     Scanner client_input = new Scanner(System.in);
                     String buffer, content;
-                    while (true) {
+                    boolean exit=false;
+                    while (!exit) {
                         String input = client_input.nextLine();
                         if (!input.isEmpty()) {
                             if (input.contains(" ")) {
@@ -148,9 +156,7 @@ public class IRCClient {
                                     case "/LEAVE":
                                         if (!content.isEmpty()) {
                                             synchronized (blockingStub) {
-                                                MessageProtos.UserRequest.Builder request = MessageProtos.UserRequest.newBuilder();
-                                                request.setUserid(currentUId);
-                                                request = MessageProtos.UserRequest.newBuilder();
+                                                MessageProtos.UserRequest.Builder request = MessageProtos.UserRequest.newBuilder();;
                                                 request.setUserid(currentUId);
                                                 request.setData(content);
                                                 if (!Boolean.valueOf(blockingStub.leaveChannel(request.build()).getValue())) {
@@ -165,7 +171,8 @@ public class IRCClient {
                                             request.setResponseType("int");
                                             request.setValue(String.valueOf(currentUId));
                                             blockingStub.exit(request.build());
-                                            return;
+                                            exit=true;
+                                            break;
                                         }
                                     default:
                                         MessageProtos.MessageSend.Builder M = MessageProtos.MessageSend.newBuilder();
@@ -181,7 +188,9 @@ public class IRCClient {
                                             M.setMessage(input);
                                         }
                                         synchronized (blockingStub) {
-                                            if (!Boolean.valueOf(blockingStub.sendMessage(M.build()).getValue())) {
+                                            String boo=blockingStub.sendMessage(M.build()).getValue();
+                                            System.out.println(boo);
+                                            if (!Boolean.valueOf(boo)) {
                                                 System.out.println("channel unknown, please join a channel or recheck your message");
                                             }
                                         }
@@ -195,6 +204,7 @@ public class IRCClient {
                 } catch (Exception x) {
                     x.printStackTrace();
                 }
+                isExit=true;
             }
         };
     }

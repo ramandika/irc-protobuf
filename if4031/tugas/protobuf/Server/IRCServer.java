@@ -11,7 +11,12 @@ import io.grpc.netty.NettyServerBuilder;
 public class IRCServer {
     final static int PORT = 9090;
     public static void main(String[] args){
-        Runnable simple = IRCServer::simple;
+        Runnable simple = new Runnable() {
+            @Override
+            public void run() {
+                simple();
+            }
+        };
         new Thread(simple).start();
     }
 
