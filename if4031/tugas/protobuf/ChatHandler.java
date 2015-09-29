@@ -85,7 +85,6 @@ public class ChatHandler implements ChatApplicationGrpc.ChatApplication{
                 }
             }
         } catch(Exception x){
-            x.printStackTrace();
             System.out.println(request.getChname() +" channel not found");
             responseObserver.onValue(MessageProtos.TypeNative.newBuilder().setResponseType("boolean").setValue(String.valueOf(false)).build());
         }

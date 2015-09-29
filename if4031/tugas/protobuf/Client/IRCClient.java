@@ -189,7 +189,6 @@ public class IRCClient {
                                         }
                                         synchronized (blockingStub) {
                                             String boo=blockingStub.sendMessage(M.build()).getValue();
-                                            System.out.println(boo);
                                             if (!Boolean.valueOf(boo)) {
                                                 System.out.println("channel unknown, please join a channel or recheck your message");
                                             }
